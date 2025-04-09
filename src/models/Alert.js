@@ -55,7 +55,7 @@ const alertSchema = new mongoose.Schema(
       createdAt: "created_at",
       updatedAt: "updated_at",
     },
-  },
+  }
 );
 
 module.exports = mongoose.model("Alert", alertSchema);

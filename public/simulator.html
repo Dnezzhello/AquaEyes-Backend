@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>AquaEyes Simulator</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <script src="/socket.io/socket.io.js"></script>
+  </head>
+  <body class="bg-gray-100 p-8">
+    <div class="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+      <h1 class="text-2xl font-bold mb-6">AquaEyes Simulator</h1>
+
+      <div class="mb-8">
+        <h2 class="text-lg font-semibold mb-4">Simulate Sensor Reading</h2>
+        <form id="readingForm" class="space-y-4">
+          <div>
+            <label class="block mb-1">Device ID</label>
+            <input
+              type="text"
+              id="deviceId"
+              value="DEV001"
+              class="w-full p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label class="block mb-1">Sensor ID</label>
+            <select id="sensorId" class="w-full p-2 border rounded">
+              <option value="WL001">Water Level (WL001)</option>
+              <option value="FL001">Flow Rate (FL001)</option>
+              <option value="RG001">Rain Gauge (RG001)</option>
+              <option value="SM001">Soil Moisture (SM001)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block mb-1">Value</label>
+            <input
+              type="number"
+              id="readingValue"
+              value="120"
+              class="w-full p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label class="block mb-1">Unit</label>
+            <input
+              type="text"
+              id="readingUnit"
+              value="cm"
+              class="w-full p-2 border rounded"
+            />
+          </div>
+          <button
+            type="submit"
+            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Send Reading
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h2 class="text-lg font-semibold mb-4">Simulate Alert</h2>
+        <form id="alertForm" class="space-y-4">
+          <div>
+            <label class="block mb-1">Type</label>
+            <select id="alertType" class="w-full p-2 border rounded">
+              <option value="flood_warning">Flood Warning</option>
+              <option value="sensor_failure">Sensor Failure</option>
+              <option value="battery_low">Battery Low</option>
+              <option value="connection_loss">Connection Loss</option>
+            </select>
+          </div>
+          <div>
+            <label class="block mb-1">Severity</label>
+            <select id="alertSeverity" class="w-full p-2 border rounded">
+              <option value="info">Info</option>
+              <option value="warning">Warning</option>
+              <option value="danger">Danger</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div>
+            <label class="block mb-1">Message</label>
+            <textarea
+              id="alertMessage"
+              class="w-full p-2 border rounded"
+              rows="3"
+            >
+Water level rising rapidly at Ban Na Than</textarea
+            >
+          </div>
+          <button
+            type="submit"
+            class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+          >
+            Send Alert
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const socket = io();
+
+      document
+        .getElementById("readingForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const reading = {
+            device_id: document.getElementById("deviceId").value,
+            sensor_id: document.getElementById("sensorId").value,
+            value: parseFloat(document.getElementById("readingValue").value),
+            unit: document.getElementById("readingUnit").value,
+          };
+
+          try {
+            const response = await fetch("/api/devices/simulate/reading", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(reading),
+            });
+
+            const result = await response.json();
+            alert("Reading sent successfully!");
+          } catch (error) {
+            console.error("Error:", error);
+            alert("Failed to send reading");
+          }
+        });
+
+      document
+        .getElementById("alertForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const alert = {
+            type: document.getElementById("alertType").value,
+            severity: document.getElementById("alertSeverity").value,
+            message: document.getElementById("alertMessage").value,
+            devices: [document.getElementById("deviceId").value],
+          };
+
+          try {
+            const response = await fetch("/api/devices/simulate/alert", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(alert),
+            });
+
+            const result = await response.json();
+            alert("Alert sent successfully!");
+          } catch (error) {
+            console.error("Error:", error);
+            alert("Failed to send alert");
+          }
+        });
+    </script>
+  </body>
+</html>

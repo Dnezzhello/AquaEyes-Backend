@@ -1,5 +1,18 @@
 const mongoose = require("mongoose");
 
+// Define a separate schema for the sensor
+const sensorSchema = new mongoose.Schema({
+  sensor_id: String,
+  type: String,
+  model: String,
+  installation_date: Date,
+  thresholds: {
+    warning: Number,
+    danger: Number,
+    critical: Number,
+  },
+});
+
 const deviceSchema = new mongoose.Schema(
   {
     device_id: {
@@ -21,19 +34,7 @@ const deviceSchema = new mongoose.Schema(
       waterway: String,
       elevation: Number,
     },
-    sensors: [
-      {
-        sensor_id: String,
-        type: String,
-        model: String,
-        installation_date: Date,
-        thresholds: {
-          warning: Number,
-          danger: Number,
-          critical: Number,
-        },
-      },
-    ],
+    sensors: [sensorSchema], // Use the defined sensor schema
     status: {
       battery: Number,
       signal_strength: Number,
