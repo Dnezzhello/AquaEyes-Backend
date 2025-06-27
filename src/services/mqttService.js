@@ -1,5 +1,13 @@
 const mqtt = require("mqtt");
 const { Device, SensorReading, Alert } = require("../models");
+// const roundToTwoDecimals = require("../../utils/formatNumber.js");
+
+const roundToTwoDecimals = (value) => {
+  if (value === null || value === undefined || isNaN(parseFloat(value))) {
+    return value;
+  }
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+};
 
 class MqttService {
   constructor(io) {
@@ -107,6 +115,7 @@ class MqttService {
   async processSensorReading(deviceId, sensorType, payload) {
     try {
       const sensorId = payload.sensor_id;
+      const roundedValue = roundToTwoDecimals(payload.value);
       let reading;
       if (!sensorId) {
         console.warn(
@@ -137,8 +146,10 @@ class MqttService {
           sensor_reading_id: `SRD-${Date.now().toString().slice(-6)}`,
           device_id: deviceId,
           sensor_id: fallbackId,
-          timestamp: new Date(payload.timestamp) || new Date(),
-          value: payload.value,
+          timestamp: payload.timestamp
+            ? new Date(payload.timestamp)
+            : new Date(),
+          value: roundedValue,
           unit: payload.unit,
           metadata: payload.metadata || {},
         });
@@ -151,7 +162,7 @@ class MqttService {
           device_id: deviceId,
           sensor_id: sensorId, // Use the actual sensor ID from the device
           timestamp: new Date(payload.timestamp) || new Date(),
-          value: payload.value,
+          value: roundedValue,
           unit: payload.unit,
           metadata: payload.metadata || {},
         });
