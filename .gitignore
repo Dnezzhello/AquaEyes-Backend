@@ -128,3 +128,13 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# AI Assistant/Tooling specific
+# Ignore files, directories, and history logs from AI assistants.
+.cursor/
+.cursorignore
+.cursorindexingignore
+claude.md
+gemini.md
+.gemini-ignore
+
