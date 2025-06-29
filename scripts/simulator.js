@@ -11,7 +11,7 @@ const devices = [
     id: 'DEV001', 
     name: 'Vientiane Station',
     baseValues: {
-      waterLevel: 120,    // Normal base level
+      waterLevel: 200,    // Normal distance from sensor (cm)
       flowRate: 8,        // Normal flow rate
       soilMoisture: 45    // Normal soil moisture
     },
@@ -20,7 +20,7 @@ const devices = [
         id: 'WL001', 
         type: 'water_level', 
         unit: 'cm', 
-        thresholds: { warning: 150, danger: 250, critical: 350 }
+        thresholds: { warning: 150, danger: 100, critical: 50 }
       },
       { 
         id: 'FL001', 
@@ -101,8 +101,8 @@ function generateRealisticReading(deviceId, sensorType, mode = SIMULATION_MODE) 
 function generateRainfall(mode) {
   const hour = new Date().getHours();
   
-  // Check for storm events
-  if (!globalState.isStormEvent && Math.random() < 0.05) {
+  // Check for storm events (only in warning/critical modes)
+  if (mode !== 'normal' && !globalState.isStormEvent && Math.random() < 0.05) {
     globalState.isStormEvent = true;
     globalState.stormDuration = Math.floor(Math.random() * 6) + 2; // 2-8 intervals
   }
@@ -116,8 +116,8 @@ function generateRainfall(mode) {
   
   switch (mode) {
     case 'normal':
-      if (globalState.isStormEvent) return Math.random() * 15 + 5;
-      return hour >= 14 && hour <= 18 ? Math.random() * 5 : Math.random() * 2;
+      // Normal mode: very light rainfall only, no storms
+      return hour >= 14 && hour <= 18 ? Math.random() * 2 : Math.random() * 1;
       
     case 'warning':
       if (globalState.isStormEvent) return Math.random() * 25 + 10;
@@ -142,7 +142,8 @@ function generateWaterLevel(deviceId, mode, lastValue) {
   const tidalEffect = Math.sin((hour * Math.PI) / 12) * 8;
   
   // Rainfall impact (delayed by 30-60 minutes)
-  const rainfallImpact = globalState.currentRainfall * 1.5;
+  // For ultrasonic sensor: rainfall should DECREASE distance (water level rises)
+  const rainfallImpact = -(globalState.currentRainfall * 1.5);
   
   // Gradual trending based on mode
   switch (mode) {
@@ -156,7 +157,8 @@ function generateWaterLevel(deviceId, mode, lastValue) {
       
     case 'critical':
     case 'flood_event':
-      globalState.waterLevelTrend = Math.max(0, Math.min(8, globalState.waterLevelTrend + (Math.random() - 0.1) * 1.2));
+      // Aggressive downward trend for critical flood conditions
+      globalState.waterLevelTrend = Math.max(-5, Math.min(-2, globalState.waterLevelTrend + (Math.random() - 0.8) * 2.0));
       break;
   }
   
@@ -165,7 +167,16 @@ function generateWaterLevel(deviceId, mode, lastValue) {
   // Smooth transition to target (not instant changes)
   const change = (targetLevel - lastValue) * 0.3 + (Math.random() - 0.5) * 3;
   
-  return Math.max(30, lastValue + change);
+  const newValue = lastValue + change;
+  
+  // Mode-specific range constraints
+  if (mode === 'normal') {
+    return Math.max(160, Math.min(250, newValue)); // Stay above 150cm warning threshold
+  } else if (mode === 'critical' || mode === 'flood_event') {
+    return Math.max(20, Math.min(80, newValue)); // Force critical range (≤50cm triggers critical)
+  }
+  
+  return Math.max(30, Math.min(300, newValue));
 }
 
 function generateFlowRate(deviceId, mode, lastValue) {
@@ -186,13 +197,20 @@ function generateFlowRate(deviceId, mode, lastValue) {
       break;
     case 'critical':
     case 'flood_event':
-      targetFlow *= 2.2;
+      targetFlow *= 4.0; // Ensure flow rate exceeds 30 critical threshold
       break;
   }
   
   const change = (targetFlow - lastValue) * 0.4 + (Math.random() - 0.5) * 1;
   
-  return Math.max(0.5, lastValue + change);
+  const newFlowValue = lastValue + change;
+  
+  // Force critical values in critical mode
+  if (mode === 'critical' || mode === 'flood_event') {
+    return Math.max(35, Math.min(60, newFlowValue)); // Ensure above 30 critical threshold
+  }
+  
+  return Math.max(0.5, newFlowValue);
 }
 
 function generateSoilMoisture(deviceId, mode, lastValue) {
@@ -213,13 +231,20 @@ function generateSoilMoisture(deviceId, mode, lastValue) {
       break;
     case 'critical':
     case 'flood_event':
-      targetMoisture += 25;
+      targetMoisture += 55; // Ensure soil moisture exceeds 95% critical threshold
       break;
   }
   
   const change = (targetMoisture - lastValue) * 0.2 + drainage + (Math.random() - 0.5) * 2;
   
-  return Math.max(15, Math.min(100, lastValue + change));
+  const newMoistureValue = lastValue + change;
+  
+  // Force critical values in critical mode
+  if (mode === 'critical' || mode === 'flood_event') {
+    return Math.max(96, Math.min(100, newMoistureValue)); // Ensure above 95% critical threshold
+  }
+  
+  return Math.max(15, Math.min(100, newMoistureValue));
 }
 
 // Simulate a reading for each sensor of each device
@@ -241,7 +266,7 @@ async function simulateReadings() {
         });
         
         // Check if value is approaching thresholds
-        const status = getThresholdStatus(value, sensor.thresholds);
+        const status = getThresholdStatus(value, sensor.thresholds, sensor.type);
         const statusIcon = status === 'normal' ? '🟢' : status === 'warning' ? '🟡' : status === 'danger' ? '🟠' : '🔴';
         
         console.log(`  ${statusIcon} ${sensor.type}: ${value} ${sensor.unit} [${status}]`);
@@ -262,21 +287,29 @@ async function simulateReadings() {
   }
 }
 
-function getThresholdStatus(value, thresholds) {
-  if (value >= thresholds.critical) return 'critical';
-  if (value >= thresholds.danger) return 'danger';
-  if (value >= thresholds.warning) return 'warning';
+function getThresholdStatus(value, thresholds, sensorType) {
+  if (sensorType === 'water_level') {
+    // For ultrasonic sensors: lower distance = higher water level = more dangerous
+    if (value <= thresholds.critical) return 'critical';
+    if (value <= thresholds.danger) return 'danger';
+    if (value <= thresholds.warning) return 'warning';
+  } else {
+    // For other sensors: higher values = more dangerous
+    if (value >= thresholds.critical) return 'critical';
+    if (value >= thresholds.danger) return 'danger';
+    if (value >= thresholds.warning) return 'warning';
+  }
   return 'normal';
 }
 
 async function checkAndSimulateAlert(deviceId, sensor, value) {
-  const status = getThresholdStatus(value, sensor.thresholds);
+  const status = getThresholdStatus(value, sensor.thresholds, sensor.type);
   
   // Only create alerts for warning and above, and not too frequently
   if (status !== 'normal' && Math.random() < 0.3) {
     try {
       const alertData = {
-        type: sensor.type === 'water_level' || sensor.type === 'flow_rate' ? 'flood_warning' : 'sensor_failure',
+        type: getAlertTypeForSensor(sensor.type),
         severity: status,
         message: generateAlertMessage(sensor.type, value, sensor.unit, status),
         devices: [deviceId]
@@ -287,6 +320,20 @@ async function checkAndSimulateAlert(deviceId, sensor, value) {
     } catch (error) {
       console.error('Error creating alert:', error.message);
     }
+  }
+}
+
+function getAlertTypeForSensor(sensorType) {
+  switch (sensorType) {
+    case 'water_level':
+    case 'flow_rate':
+      return 'flood_warning';
+    case 'rainfall':
+      return 'rainfall_warning';
+    case 'soil_moisture':
+      return 'soil_saturation_warning';
+    default:
+      return 'sensor_failure';
   }
 }
 
@@ -389,9 +436,9 @@ if (command === 'history') {
   console.log('  node simulator.js history [days]');
   console.log('  SIM_MODE=critical node simulator.js\n');
   
-  // Run simulation every 30 seconds
+  // Run simulation every 7 seconds
   simulateReadings();
-  const interval = setInterval(simulateReadings, 30000);
+  const interval = setInterval(simulateReadings, 7000);
   
   // Handle graceful shutdown
   process.on('SIGINT', () => {
