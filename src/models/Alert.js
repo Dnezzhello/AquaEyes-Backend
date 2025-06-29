@@ -12,6 +12,8 @@ const alertSchema = new mongoose.Schema(
       required: true,
       enum: [
         "flood_warning",
+        "rainfall_warning",
+        "soil_saturation_warning",
         "sensor_failure",
         "battery_low",
         "connection_loss",

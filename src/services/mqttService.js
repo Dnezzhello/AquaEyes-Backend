@@ -16,7 +16,7 @@ class MqttService {
     this.mqttConfig = {
       broker: process.env.MQTT_BROKER,
       port: process.env.MQTT_PORT,
-      clientId: `AquaEyes_Backend${Date.now()}`,
+      clientId: `AquaEyes_Backend_${Date.now()}_${Math.random().toString(36).substring(2)}`,
       username: process.env.MQTT_USERNAME,
       password: process.env.MQTT_PASSWORD,
       protocol: "mqtts",
@@ -126,24 +126,24 @@ class MqttService {
         let fallbackId;
         switch (sensorType) {
           case "water_level":
-            fallbackId = `WL-${deviceId}`;
+            fallbackId = `WL_${deviceId}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
             break;
           case "flow_rate":
-            fallbackId = `FL-${deviceId}`;
+            fallbackId = `FL_${deviceId}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
             break;
           case "rainfall":
-            fallbackId = `RG-${deviceId}`;
+            fallbackId = `RG_${deviceId}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
             break;
           case "soil_moisture":
-            fallbackId = `SM-${deviceId}`;
+            fallbackId = `SM_${deviceId}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
             break;
           default:
-            fallbackId = `UNKNOWN-${deviceId}-${sensorType}`;
+            fallbackId = `UNKNOWN_${deviceId}_${sensorType}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
         }
 
         // Create new sensor reading with fallback ID
         reading = new SensorReading({
-          sensor_reading_id: `SRD-${Date.now().toString().slice(-6)}`,
+          sensor_reading_id: `SRD_${Date.now()}_${Math.random().toString(36).substring(2, 10)}_${deviceId}`,
           device_id: deviceId,
           sensor_id: fallbackId,
           timestamp: payload.timestamp
@@ -158,7 +158,7 @@ class MqttService {
       } else {
         // Create new sensor reading with the actual sensor ID
         reading = new SensorReading({
-          sensor_reading_id: `SRD-${Date.now().toString().slice(-6)}`,
+          sensor_reading_id: `SRD_${Date.now()}_${Math.random().toString(36).substring(2, 10)}_${deviceId}`,
           device_id: deviceId,
           sensor_id: sensorId, // Use the actual sensor ID from the device
           timestamp: new Date(payload.timestamp) || new Date(),
@@ -229,7 +229,7 @@ class MqttService {
       // Check if battery is low and trigger alert if needed
       if (payload.value < 20) {
         const alert = new Alert({
-          alert_id: `ALT-${Date.now().toString().slice(-6)}`,
+          alert_id: `ALT_BATTERY_${deviceId}_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`,
           type: "battery_low",
           severity: payload.value < 10 ? "critical" : "warning",
           message: `Low battery: ${payload.value}% remaining on device ${deviceId}`,
@@ -282,21 +282,61 @@ class MqttService {
       let alertType = null;
       let alertSeverity = null;
 
-      if (value >= sensorInfo.thresholds.critical) {
-        alertType = "flood_warning";
-        alertSeverity = "critical";
-      } else if (value >= sensorInfo.thresholds.danger) {
-        alertType = "flood_warning";
-        alertSeverity = "danger";
-      } else if (value >= sensorInfo.thresholds.warning) {
-        alertType = "flood_warning";
-        alertSeverity = "warning";
+      // Determine alert type and severity based on sensor type
+      if (sensorType === "water_level") {
+        // Ultrasonic sensor: lower distance = higher water level = more dangerous
+        if (value <= sensorInfo.thresholds.critical) {
+          alertType = "flood_warning";
+          alertSeverity = "critical";
+        } else if (value <= sensorInfo.thresholds.danger) {
+          alertType = "flood_warning";
+          alertSeverity = "danger";
+        } else if (value <= sensorInfo.thresholds.warning) {
+          alertType = "flood_warning";
+          alertSeverity = "warning";
+        }
+      } else if (sensorType === "flow_rate") {
+        // Flow rate: higher values = more dangerous
+        if (value >= sensorInfo.thresholds.critical) {
+          alertType = "flood_warning";
+          alertSeverity = "critical";
+        } else if (value >= sensorInfo.thresholds.danger) {
+          alertType = "flood_warning";
+          alertSeverity = "danger";
+        } else if (value >= sensorInfo.thresholds.warning) {
+          alertType = "flood_warning";
+          alertSeverity = "warning";
+        }
+      } else if (sensorType === "rainfall") {
+        // Rainfall: higher values = more dangerous
+        if (value >= sensorInfo.thresholds.critical) {
+          alertType = "rainfall_warning";
+          alertSeverity = "critical";
+        } else if (value >= sensorInfo.thresholds.danger) {
+          alertType = "rainfall_warning";
+          alertSeverity = "danger";
+        } else if (value >= sensorInfo.thresholds.warning) {
+          alertType = "rainfall_warning";
+          alertSeverity = "warning";
+        }
+      } else if (sensorType === "soil_moisture") {
+        // Soil moisture: higher values = more dangerous
+        if (value >= sensorInfo.thresholds.critical) {
+          alertType = "soil_saturation_warning";
+          alertSeverity = "critical";
+        } else if (value >= sensorInfo.thresholds.danger) {
+          alertType = "soil_saturation_warning";
+          alertSeverity = "danger";
+        } else if (value >= sensorInfo.thresholds.warning) {
+          alertType = "soil_saturation_warning";
+          alertSeverity = "warning";
+        }
       }
 
       if (alertType && alertSeverity) {
         // Create alert
         const alert = new Alert({
-          alert_id: `ALT-${Date.now().toString().slice(-6)}`,
+          alert_id: `ALT_THRESHOLD_${sensorType.toUpperCase()}_${deviceId}_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`,
           type: alertType,
           severity: alertSeverity,
           message: this.createAlertMessage(
@@ -304,12 +344,11 @@ class MqttService {
             value,
             reading.unit,
             sensorInfo.thresholds,
+            alertSeverity,
           ),
           devices: [deviceId],
           triggered_by: {
-            condition: `${this.getSensorTypeName(
-              sensorType,
-            )} exceeds ${alertSeverity} threshold`,
+            condition: this.createConditionText(sensorType, alertSeverity),
             readings: [value],
             threshold: sensorInfo.thresholds[alertSeverity],
           },
@@ -345,16 +384,21 @@ class MqttService {
     }
   }
 
-  createAlertMessage(sensorType, value, unit, thresholds) {
+  createAlertMessage(sensorType, value, unit, thresholds, severity) {
     const sensorName = this.getSensorTypeName(sensorType);
-    const threshold =
-      value >= thresholds.critical
-        ? thresholds.critical
-        : value >= thresholds.danger
-          ? thresholds.danger
-          : thresholds.warning;
+    const threshold = thresholds[severity];
 
     return `${sensorName} alert: ${value} ${unit} (Threshold: ${threshold} ${unit})`;
+  }
+
+  createConditionText(sensorType, severity) {
+    const sensorName = this.getSensorTypeName(sensorType);
+    
+    if (sensorType === "water_level") {
+      return `${sensorName} below ${severity} distance threshold`;
+    } else {
+      return `${sensorName} exceeds ${severity} threshold`;
+    }
   }
 
   // Method to send configuration to devices

@@ -21,7 +21,7 @@ async function seedDevices() {
       device_id: 'DEV001',
       name: 'AquaEyes Prototype Node 1',
       location: {
-        name: 'Ban Na Than, Pak San',
+        name: 'Vientiane Station 1 Prototype',
         coordinates: [Number(102.6123), Number(18.3893)],
         waterway: 'Mekong River',
         elevation: Number(174)
@@ -31,18 +31,18 @@ async function seedDevices() {
           sensor_id: 'WL001',
           type: 'water_level',
           model: 'JSN-SR04T',
-          installation_date: new Date('2024-03-01'),
+          installation_date: new Date('2025-06-15'),
           thresholds: {
             warning: Number(150),
-            danger: Number(250),
-            critical: Number(350)
+            danger: Number(100),
+            critical: Number(50)
           }
         },
         {
           sensor_id: 'FL001',
           type: 'flow_rate',
           model: 'YF-S201',
-          installation_date: new Date('2024-03-01'),
+          installation_date: new Date('2025-06-15'),
           thresholds: {
             warning: Number(10),
             danger: Number(20),
@@ -52,8 +52,8 @@ async function seedDevices() {
         {
           sensor_id: 'RG001',
           type: 'rainfall',
-          model: 'Tipping Bucket',
-          installation_date: new Date('2024-03-01'),
+          model: 'DFRobot SEN0575',
+          installation_date: new Date('2025-06-15'),
           thresholds: {
             warning: Number(10),
             danger: Number(25),
@@ -64,7 +64,7 @@ async function seedDevices() {
           sensor_id: 'SM001',
           type: 'soil_moisture',
           model: 'Resistive Probe',
-          installation_date: new Date('2024-03-01'),
+          installation_date: new Date('2025-06-15'),
           thresholds: {
             warning: Number(70),
             danger: Number(85),
